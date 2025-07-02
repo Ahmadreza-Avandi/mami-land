@@ -1,32 +1,51 @@
 import React, { useState } from 'react';
-import { User, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { User, Mail, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { authService } from '../services/authService';
 
-interface LoginScreenProps {
-  onLogin: (user: any) => void;
+interface RegisterScreenProps {
+  onRegister: (user: any) => void;
   onBack: () => void;
 }
 
-export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onBack }) => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+export const RegisterScreen: React.FC<RegisterScreenProps> = ({ onRegister, onBack }) => {
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    confirmPassword: ''
+  });
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim() || !password.trim()) return;
+    
+    if (!formData.name.trim() || !formData.email.trim() || !formData.password.trim()) {
+      setError('لطفاً تمام فیلدها را پر کنید');
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      setError('رمز عبور باید حداقل ۶ کاراکتر باشد');
+      return;
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      setError('رمز عبور و تکرار آن یکسان نیستند');
+      return;
+    }
 
     setIsLoading(true);
     setError('');
 
     try {
-      const user = await authService.login(email, password);
+      const user = await authService.register(formData.name, formData.email, formData.password);
       if (user) {
-        onLogin(user);
+        onRegister(user);
       } else {
-        setError('ایمیل یا رمز عبور نامعتبر است');
+        setError('خطایی در ثبت نام رخ داد');
       }
     } catch {
       setError('خطایی رخ داد، دوباره تلاش کنید');
@@ -46,7 +65,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onBack }) => 
             >
               <ArrowRight className="text-gray-600" size={20} />
             </button>
-            <h1 className="text-xl font-bold text-gray-800 mr-3">ورود به حساب</h1>
+            <h1 className="text-xl font-bold text-gray-800 mr-3">ثبت نام</h1>
           </div>
 
           <div className="text-center mb-8">
@@ -55,22 +74,43 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onBack }) => 
             </div>
             
             <p className="text-gray-600 text-sm leading-relaxed">
-              وارد حساب کاربری خود شوید
+              حساب کاربری جدید ایجاد کنید
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                ایمیل
+                نام و نام خانوادگی
               </label>
               <div className="relative">
                 <User className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
                 <input
-                  type="email"
-                  value={email}
+                  type="text"
+                  value={formData.name}
                   onChange={(e) => {
-                    setEmail(e.target.value);
+                    setFormData({ ...formData, name: e.target.value });
+                    setError('');
+                  }}
+                  placeholder="نام خود را وارد کنید"
+                  className="w-full pr-10 pl-4 py-3 border border-pink-200 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent outline-none transition-all duration-200"
+                  disabled={isLoading}
+                  required
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                ایمیل
+              </label>
+              <div className="relative">
+                <Mail className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => {
+                    setFormData({ ...formData, email: e.target.value });
                     setError('');
                   }}
                   placeholder="example@email.com"
@@ -89,15 +129,16 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onBack }) => 
                 <Lock className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  value={password}
+                  value={formData.password}
                   onChange={(e) => {
-                    setPassword(e.target.value);
+                    setFormData({ ...formData, password: e.target.value });
                     setError('');
                   }}
-                  placeholder="رمز عبور خود را وارد کنید"
+                  placeholder="حداقل ۶ کاراکتر"
                   className="w-full pr-10 pl-10 py-3 border border-pink-200 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent outline-none transition-all duration-200"
                   disabled={isLoading}
                   required
+                  minLength={6}
                 />
                 <button
                   type="button"
@@ -105,6 +146,34 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onBack }) => 
                   className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                تکرار رمز عبور
+              </label>
+              <div className="relative">
+                <Lock className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  value={formData.confirmPassword}
+                  onChange={(e) => {
+                    setFormData({ ...formData, confirmPassword: e.target.value });
+                    setError('');
+                  }}
+                  placeholder="رمز عبور را دوباره وارد کنید"
+                  className="w-full pr-10 pl-10 py-3 border border-pink-200 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent outline-none transition-all duration-200"
+                  disabled={isLoading}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
             </div>
@@ -117,23 +186,23 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onBack }) => 
 
             <button
               type="submit"
-              disabled={!email.trim() || !password.trim() || isLoading}
+              disabled={isLoading}
               className="w-full bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white py-3 rounded-xl font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-lg hover:scale-105 active:scale-95"
             >
               {isLoading ? (
                 <div className="flex items-center justify-center gap-2">
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  در حال ورود...
+                  در حال ثبت نام...
                 </div>
               ) : (
-                'ورود'
+                'ثبت نام'
               )}
             </button>
           </form>
 
           <div className="mt-6 pt-6 border-t border-pink-100">
             <p className="text-center text-xs text-gray-500 leading-relaxed">
-              رمز عبور خود را فراموش کرده‌اید؟ با ادمین تماس بگیرید
+              با ثبت نام، شرایط و قوانین مامی‌لند را می‌پذیرید
             </p>
           </div>
         </div>

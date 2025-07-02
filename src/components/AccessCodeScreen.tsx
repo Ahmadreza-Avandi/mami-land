@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { Shield, Lock } from 'lucide-react';
+import React, { useState } from 'react';
+import { Shield, Lock, ArrowRight } from 'lucide-react';
 import { authService } from '../services/authService';
 
 interface AccessCodeScreenProps {
   onValidCode: () => void;
+  onBack: () => void;
 }
 
-export const AccessCodeScreen: React.FC<AccessCodeScreenProps> = ({ onValidCode }) => {
+export const AccessCodeScreen: React.FC<AccessCodeScreenProps> = ({ onValidCode, onBack }) => {
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -34,17 +35,23 @@ export const AccessCodeScreen: React.FC<AccessCodeScreenProps> = ({ onValidCode 
     <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-rose-50 flex items-center justify-center p-4" dir="rtl">
       <div className="w-full max-w-md">
         <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl border border-pink-100 p-8">
+          <div className="flex items-center mb-6">
+            <button
+              onClick={onBack}
+              className="flex items-center justify-center w-10 h-10 rounded-xl hover:bg-pink-50 transition-colors duration-200"
+            >
+              <ArrowRight className="text-gray-600" size={20} />
+            </button>
+            <h1 className="text-xl font-bold text-gray-800 mr-3">کد دسترسی</h1>
+          </div>
+
           <div className="text-center mb-8">
-            <div className="w-20 h-20 bg-gradient-to-r from-pink-500 to-rose-500 rounded-3xl flex items-center justify-center mx-auto mb-6">
-              <Shield className="text-white" size={32} />
+            <div className="w-16 h-16 bg-gradient-to-r from-pink-500 to-rose-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <Shield className="text-white" size={24} />
             </div>
             
-            <h1 className="text-2xl font-bold text-gray-800 mb-2">
-              ورود به مامی‌لند
-            </h1>
-            
             <p className="text-gray-600 text-sm leading-relaxed">
-              لطفاً کد دسترسی خود را وارد کنید
+              لطفاً کد دسترسی دریافتی از ادمین را وارد کنید
             </p>
           </div>
 

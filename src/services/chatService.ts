@@ -1,5 +1,9 @@
 import { ChatMessage, UserProfile } from '../types/chat';
 
+const CHAT_HISTORY_KEY = 'mamiland_chat_history';
+const USER_PROFILE_KEY = 'mamiland_user_profile';
+const PROXY_API_URL = 'https://mine-gpt-alpha.vercel.app/proxy';
+
 class ChatService {
   private readonly CHAT_HISTORY_KEY = 'mamiland_chat_history';
   private readonly USER_PROFILE_KEY = 'mamiland_user_profile';
@@ -75,101 +79,67 @@ class ChatService {
     }
   }
 
-  // ارسال پیام به هوش مصنوعی (شبیه‌سازی شده)
+  // فرمت کردن تاریخچه چت برای ارسال به API
+  private formatChatHistory(messages: ChatMessage[], userProfile: UserProfile): string {
+    let systemMessage = `
+تو یک مشاور هستی (دستیار هوش مصنوعی مامی‌لند) و وظیفه‌ت همدلی و همراهی با مادرهاست.
+نباید خیلی تخصصی جواب بدی؛ باید صمیمی، دلسوز و خودمونی باشی. اگر سوال خیلی تخصصی بود، ارجاع بده به واتساپ مامی‌لند.
+جواب باید ۲ تا ۵ خط باشه و حتماً فارسی و غیررسمی.
+سوالاتی که مربوط به پزشکی نیستن رو نباید جواب بدی
+System: You are a helpful assistant for MamiLand (مامی‌لند), a Persian website specialized in pregnancy and motherhood support. Always respond in Persian language. Be friendly, supportive, and informal.
+    `;
+
+    if (userProfile.isComplete) {
+      systemMessage += `
+
+User Profile:
+- Name: ${userProfile.name}
+- Age: ${userProfile.age}
+- Pregnancy Status: ${userProfile.isPregnant ? 'باردار' : 'غیر باردار'}
+- Pregnancy Week: ${userProfile.pregnancyWeek || 'مشخص نشده'}
+- Medical Conditions: ${userProfile.medicalConditions || 'هیچی'}
+
+از این اطلاعات برای جواب دادن استفاده کن. اسم کاربر رو اگه خواستی استفاده کن، مشکلی نیست.
+`;
+    }
+
+    const chat = messages.map(msg => {
+      const role = msg.role === 'user' ? 'User' : 'Assistant';
+      return `${role}: ${msg.content}`;
+    }).join('\n');
+
+    return `${systemMessage}\n\nChat History:\n${chat}`;
+  }
+
+  // ارسال پیام به هوش مصنوعی با استفاده از LangChain
   async sendMessage(messages: ChatMessage[], userProfile: UserProfile): Promise<string> {
-    // شبیه‌سازی تأخیر شبکه
-    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+    try {
+      const prompt = this.formatChatHistory(messages, userProfile);
+      const encodedPrompt = encodeURIComponent(prompt);
 
-    const lastMessage = messages[messages.length - 1];
-    const userMessage = lastMessage.content.toLowerCase();
+      const response = await fetch(`${PROXY_API_URL}?text=${encodedPrompt}`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
 
-    // پاسخ‌های هوشمند بر اساس محتوای پیام و پروفایل کاربر
-    if (userMessage.includes('بارداری') || userMessage.includes('حامله')) {
-      return this.getPregnancyAdvice(userProfile);
-    }
-    
-    if (userMessage.includes('نوزاد') || userMessage.includes('بچه')) {
-      return this.getBabyAdvice(userProfile);
-    }
-    
-    if (userMessage.includes('تغذیه') || userMessage.includes('غذا')) {
-      return this.getNutritionAdvice(userProfile);
-    }
-    
-    if (userMessage.includes('علائم') || userMessage.includes('نشانه')) {
-      return this.getSymptomAdvice(userProfile);
-    }
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
-    if (userMessage.includes('ورزش') || userMessage.includes('فعالیت')) {
-      return this.getExerciseAdvice(userProfile);
+      const data = await response.json();
+
+      // فقط مقدار "answer" رو برگردون
+      if (data && data.answer) {
+        return data.answer.trim();
+      } else {
+        return 'متأسفم، نتونستم جواب مناسبی پیدا کنم. دوباره امتحان کن!';
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      return 'متأسفم، مشکلی در اتصال به سرور پیش اومده. لطفاً یه کم دیگه صبر کن و دوباره امتحان کن.';
     }
-
-    // پاسخ عمومی
-    return this.getGeneralAdvice(userProfile);
-  }
-
-  private getPregnancyAdvice(userProfile: UserProfile): string {
-    const week = userProfile.pregnancyWeek || 0;
-    const name = userProfile.name;
-    
-    if (!userProfile.isPregnant) {
-      return `سلام ${name}! اگر قصد بارداری دارید، توصیه می‌کنم:\n\n• مصرف اسید فولیک (۴۰۰ میکروگرم روزانه)\n• رژیم غذایی متعادل\n• ورزش منظم\n• ترک سیگار و الکل\n• مشاوره با پزشک\n\nآیا سوال خاصی دارید؟`;
-    }
-    
-    if (week <= 12) {
-      return `${name} عزیز، در سه‌ماهه اول بارداری (هفته ${week}):\n\n• مصرف اسید فولیک ضروری است\n• تهوع صبحگاهی طبیعی است\n• از غذاهای خام پرهیز کنید\n• استراحت کافی داشته باشید\n• ویزیت منظم پزشک\n\nنگران نباشید، همه چیز طبیعی پیش می‌رود!`;
-    }
-    
-    if (week <= 28) {
-      return `${name} جان، در سه‌ماهه دوم (هفته ${week}):\n\n• احساس بهتری خواهید داشت\n• حرکات جنین را احساس می‌کنید\n• سونوگرافی مهم در این دوره\n• ورزش ملایم مفید است\n• مراقب افزایش وزن باشید\n\nدوره طلایی بارداری است!`;
-    }
-    
-    return `${name} عزیز، در سه‌ماهه سوم (هفته ${week}):\n\n• آماده‌سازی برای زایمان\n• کلاس‌های بارداری مفید است\n• مراقب علائم زایمان باشید\n• کیف بیمارستان را آماده کنید\n• استراحت بیشتر\n\nتقریباً به پایان رسیده‌اید!`;
-  }
-
-  private getBabyAdvice(userProfile: UserProfile): string {
-    const name = userProfile.name;
-    return `${name} عزیز، نکات مهم مراقبت از نوزاد:\n\n• شیردهی انحصاری تا ۶ ماهگی\n• واکسیناسیون به موقع\n• خواب ایمن (روی پشت)\n• نظافت و بهداشت\n• ارتباط و صحبت با نوزاد\n• مراجعه منظم به پزشک\n\nصبور باشید، همه چیز یاد می‌گیرید!`;
-  }
-
-  private getNutritionAdvice(userProfile: UserProfile): string {
-    const name = userProfile.name;
-    const isPregnant = userProfile.isPregnant;
-    
-    if (isPregnant) {
-      return `${name} جان، تغذیه در بارداری:\n\n• پروتئین: گوشت، ماهی، تخم‌مرغ، حبوبات\n• کلسیم: لبنیات، کنجد، بادام\n• آهن: گوشت قرمز، اسفناج، عدس\n• اسید فولیک: سبزیجات برگ سبز\n• مایعات فراوان\n• پرهیز از غذاهای خام\n\nتغذیه متنوع کلید سلامتی است!`;
-    }
-    
-    return `${name} عزیز، تغذیه سالم:\n\n• میوه و سبزیجات تازه\n• غلات کامل\n• پروتئین‌های سالم\n• لبنیات کم‌چرب\n• آب فراوان\n• محدود کردن شکر و نمک\n\nتعادل در همه چیز مهم است!`;
-  }
-
-  private getExerciseAdvice(userProfile: UserProfile): string {
-    const name = userProfile.name;
-    const isPregnant = userProfile.isPregnant;
-    const week = userProfile.pregnancyWeek || 0;
-    
-    if (isPregnant) {
-      return `${name} عزیز، ورزش در بارداری (هفته ${week}):\n\n• پیاده‌روی روزانه ۳۰ دقیقه\n• شنا (بهترین ورزش بارداری)\n• یوگا و کشش\n• تمرینات تنفسی\n• پرهیز از ورزش‌های تماسی\n• توقف در صورت درد یا خونریزی\n\nحتماً با پزشک مشورت کنید!`;
-    }
-    
-    return `${name} جان، ورزش برای سلامتی:\n\n• ۱۵۰ دقیقه ورزش متوسط در هفته\n• ترکیب ورزش هوازی و قدرتی\n• کشش و انعطاف‌پذیری\n• شروع تدریجی\n• گوش دادن به بدن\n\nورزش منظم کلید سلامتی است!`;
-  }
-
-  private getSymptomAdvice(userProfile: UserProfile): string {
-    const name = userProfile.name;
-    return `${name} عزیز، علائم مهم که نیاز به مراجعه فوری دارند:\n\n🚨 در بارداری:\n• خونریزی شدید\n• درد شکمی شدید\n• تب بالا\n• سردرد شدید\n• تورم ناگهانی\n\n🚨 در نوزاد:\n• تب بالای ۳۸ درجه\n• تنگی نفس\n• بی‌حالی\n• عدم خوردن شیر\n\nهمیشه به غریزه مادری خود اعتماد کنید!`;
-  }
-
-  private getGeneralAdvice(userProfile: UserProfile): string {
-    const name = userProfile.name;
-    const responses = [
-      `سلام ${name}! چطور می‌تونم کمکتون کنم؟ من اینجام تا در زمینه مادری و بارداری راهنماییتون کنم.`,
-      `${name} عزیز، خوشحالم که با من صحبت می‌کنید! سوال خاصی دارید؟ می‌تونم در مورد بارداری، مراقبت از نوزاد یا سلامت مادر کمکتون کنم.`,
-      `${name} جان، همیشه یادتون باشه که شما یک مادر فوق‌العاده هستید! چه سوالی دارید؟`,
-      `سلام ${name}! من اینجام تا کمکتون کنم. می‌تونید در مورد هر موضوعی که نگرانتونه سوال بپرسید.`
-    ];
-    
-    return responses[Math.floor(Math.random() * responses.length)];
   }
 }
 

@@ -82,6 +82,44 @@ class AuthService {
     localStorage.setItem(this.ACCESS_CODES_KEY, JSON.stringify(codes));
   }
 
+  // ثبت نام کاربر جدید
+  async register(name: string, email: string, password: string): Promise<User | null> {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    const users = this.getUsers();
+    const existingUser = users.find(u => u.email === email);
+
+    if (existingUser) {
+      throw new Error('این ایمیل قبلاً ثبت شده است');
+    }
+
+    const newUser: User = {
+      id: Date.now().toString(),
+      email,
+      name,
+      joinDate: new Date(),
+      profile: {
+        name: '',
+        age: null,
+        isPregnant: null,
+        pregnancyWeek: null,
+        medicalConditions: '',
+        isComplete: false
+      }
+    };
+    
+    users.push(newUser);
+    localStorage.setItem(this.USERS_KEY, JSON.stringify(users));
+    
+    const authState: AuthState = {
+      isAuthenticated: true,
+      user: newUser,
+      accessCode: null
+    };
+    localStorage.setItem(this.AUTH_STATE_KEY, JSON.stringify(authState));
+    return newUser;
+  }
+
   // ورود کاربر
   async login(email: string, password: string): Promise<User | null> {
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -97,34 +135,6 @@ class AuthService {
       };
       localStorage.setItem(this.AUTH_STATE_KEY, JSON.stringify(authState));
       return user;
-    }
-
-    if (email && password.length >= 6) {
-      const newUser: User = {
-        id: Date.now().toString(),
-        email,
-        name: email.split('@')[0],
-        joinDate: new Date(),
-        profile: {
-          name: '',
-          age: null,
-          isPregnant: null,
-          pregnancyWeek: null,
-          medicalConditions: '',
-          isComplete: false
-        }
-      };
-      
-      users.push(newUser);
-      localStorage.setItem(this.USERS_KEY, JSON.stringify(users));
-      
-      const authState: AuthState = {
-        isAuthenticated: true,
-        user: newUser,
-        accessCode: null
-      };
-      localStorage.setItem(this.AUTH_STATE_KEY, JSON.stringify(authState));
-      return newUser;
     }
 
     return null;
