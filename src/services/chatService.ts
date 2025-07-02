@@ -1,128 +1,153 @@
 import { ChatMessage, UserProfile } from '../types/chat';
 
-const CHAT_HISTORY_KEY = 'mamiland_chat_history';
-const USER_PROFILE_KEY = 'mamiland_user_profile';
-const PROXY_API_URL = 'https://mine-gpt-alpha.vercel.app/proxy';
+class ChatService {
+  private readonly CHAT_HISTORY_KEY = 'mamiland_chat_history';
+  private readonly USER_PROFILE_KEY = 'mamiland_user_profile';
 
-export class ChatService {
-  saveChatHistory(messages: ChatMessage[]): void {
-    try {
-      localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(messages));
-    } catch (error) {
-      console.error('Error saving chat history:', error);
-    }
-  }
-
+  // بارگذاری تاریخچه چت از localStorage
   loadChatHistory(): ChatMessage[] {
     try {
-      const saved = localStorage.getItem(CHAT_HISTORY_KEY);
-      if (saved) {
-        const messages = JSON.parse(saved);
-        return messages.map((msg: any) => ({
-          ...msg,
-          timestamp: new Date(msg.timestamp),
-        }));
-      }
-    } catch (error) {
-      console.error('Error loading chat history:', error);
+      const stored = localStorage.getItem(this.CHAT_HISTORY_KEY);
+      if (!stored) return [];
+      
+      const parsed = JSON.parse(stored);
+      return parsed.map((msg: any) => ({
+        ...msg,
+        timestamp: new Date(msg.timestamp)
+      }));
+    } catch {
+      return [];
     }
-    return [];
   }
 
-  clearChatHistory(): void {
+  // ذخیره تاریخچه چت در localStorage
+  saveChatHistory(messages: ChatMessage[]): void {
     try {
-      localStorage.removeItem(CHAT_HISTORY_KEY);
-      localStorage.removeItem(USER_PROFILE_KEY);
+      localStorage.setItem(this.CHAT_HISTORY_KEY, JSON.stringify(messages));
     } catch (error) {
-      console.error('Error clearing chat history:', error);
+      console.error('خطا در ذخیره تاریخچه چت:', error);
     }
   }
 
-  saveUserProfile(profile: UserProfile): void {
-    try {
-      localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(profile));
-    } catch (error) {
-      console.error('Error saving user profile:', error);
-    }
-  }
-
+  // بارگذاری پروفایل کاربر از localStorage
   loadUserProfile(): UserProfile {
     try {
-      const saved = localStorage.getItem(USER_PROFILE_KEY);
-      if (saved) {
-        return JSON.parse(saved);
+      const stored = localStorage.getItem(this.USER_PROFILE_KEY);
+      if (!stored) {
+        return {
+          name: '',
+          age: null,
+          pregnancyWeek: null,
+          medicalConditions: '',
+          isComplete: false,
+        };
       }
-    } catch (error) {
-      console.error('Error loading user profile:', error);
+      return JSON.parse(stored);
+    } catch {
+      return {
+        name: '',
+        age: null,
+        pregnancyWeek: null,
+        medicalConditions: '',
+        isComplete: false,
+      };
     }
-    return {
-      name: '',
-      age: null,
-      pregnancyWeek: null,
-      medicalConditions: '',
-      isComplete: false,
-    };
   }
 
-  private formatChatHistory(messages: ChatMessage[], userProfile: UserProfile): string {
-    let systemMessage = `
-تو یک مشاور هستی (دستیار هوش مصنوعی مامی‌لند) و وظیفه‌ت همدلی و همراهی با مادرهاست.
-نباید خیلی تخصصی جواب بدی؛ باید صمیمی، دلسوز و خودمونی باشی. اگر سوال خیلی تخصصی بود، ارجاع بده به واتساپ مامی‌لند.
-جواب باید ۲ تا ۵ خط باشه و حتماً فارسی و غیررسمی.
-سوالاتی که مربوط به پزشکی نیستن رو نباید جواب بدی
-System: You are a helpful assistant for MamiLand (مامی‌لند), a Persian website specialized in pregnancy and motherhood support. Always respond in Persian language. Be friendly, supportive, and informal.
-    `;
-
-    if (userProfile.isComplete) {
-      systemMessage += `
-
-User Profile:
-- Name: ${userProfile.name}
-- Age: ${userProfile.age}
-- Pregnancy Week: ${userProfile.pregnancyWeek || 'مشخص نشده'}
-- Medical Conditions: ${userProfile.medicalConditions || 'هیچی'}
-
-از این اطلاعات برای جواب دادن استفاده کن. اسم کاربر رو اگه خواستی استفاده کن، مشکلی نیست.
-`;
-    }
-
-    const chat = messages.map(msg => {
-      const role = msg.role === 'user' ? 'User' : 'Assistant';
-      return `${role}: ${msg.content}`;
-    }).join('\n');
-
-    return `${systemMessage}\n\nChat History:\n${chat}`;
-  }
-
-  async sendMessage(messages: ChatMessage[], userProfile: UserProfile): Promise<string> {
+  // ذخیره پروفایل کاربر در localStorage
+  saveUserProfile(profile: UserProfile): void {
     try {
-      const prompt = this.formatChatHistory(messages, userProfile);
-      const encodedPrompt = encodeURIComponent(prompt);
-
-      const response = await fetch(`${PROXY_API_URL}?text=${encodedPrompt}`, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      // ✅ فقط مقدار "answer" رو برگردون
-      if (data && data.answer) {
-        return data.answer.trim();
-      } else {
-        return 'متأسفم، نتونستم جواب مناسبی پیدا کنم. دوباره امتحان کن!';
-      }
+      localStorage.setItem(this.USER_PROFILE_KEY, JSON.stringify(profile));
     } catch (error) {
-      console.error('Error sending message:', error);
-      return 'متأسفم، مشکلی در اتصال به سرور پیش اومده. لطفاً یه کم دیگه صبر کن و دوباره امتحان کن.';
+      console.error('خطا در ذخیره پروفایل کاربر:', error);
     }
+  }
+
+  // پاک کردن تاریخچه چت
+  clearChatHistory(): void {
+    try {
+      localStorage.removeItem(this.CHAT_HISTORY_KEY);
+      localStorage.removeItem(this.USER_PROFILE_KEY);
+    } catch (error) {
+      console.error('خطا در پاک کردن تاریخچه:', error);
+    }
+  }
+
+  // ارسال پیام به هوش مصنوعی (شبیه‌سازی شده)
+  async sendMessage(messages: ChatMessage[], userProfile: UserProfile): Promise<string> {
+    // شبیه‌سازی تأخیر شبکه
+    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000));
+
+    const lastMessage = messages[messages.length - 1];
+    const userMessage = lastMessage.content.toLowerCase();
+
+    // پاسخ‌های هوشمند بر اساس محتوای پیام
+    if (userMessage.includes('بارداری') || userMessage.includes('حامله')) {
+      return this.getPregnancyAdvice(userProfile);
+    }
+    
+    if (userMessage.includes('نوزاد') || userMessage.includes('بچه')) {
+      return this.getBabyAdvice();
+    }
+    
+    if (userMessage.includes('تغذیه') || userMessage.includes('غذا')) {
+      return this.getNutritionAdvice(userProfile);
+    }
+    
+    if (userMessage.includes('علائم') || userMessage.includes('نشانه')) {
+      return this.getSymptomAdvice();
+    }
+
+    // پاسخ عمومی
+    return this.getGeneralAdvice(userProfile);
+  }
+
+  private getPregnancyAdvice(userProfile: UserProfile): string {
+    const week = userProfile.pregnancyWeek || 0;
+    
+    if (week === 0) {
+      return `سلام ${userProfile.name}! اگر قصد بارداری دارید، توصیه می‌کنم:\n\n• مصرف اسید فولیک (۴۰۰ میکروگرم روزانه)\n• رژیم غذایی متعادل\n• ورزش منظم\n• ترک سیگار و الکل\n• مشاوره با پزشک\n\nآیا سوال خاصی دارید؟`;
+    }
+    
+    if (week <= 12) {
+      return `در سه‌ماهه اول بارداری (هفته ${week}):\n\n• مصرف اسید فولیک ضروری است\n• تهوع صبحگاهی طبیعی است\n• از غذاهای خام پرهیز کنید\n• استراحت کافی داشته باشید\n• ویزیت منظم پزشک\n\nنگران نباشید، همه چیز طبیعی پیش می‌رود!`;
+    }
+    
+    if (week <= 28) {
+      return `در سه‌ماهه دوم (هفته ${week}):\n\n• احساس بهتری خواهید داشت\n• حرکات جنین را احساس می‌کنید\n• سونوگرافی مهم در این دوره\n• ورزش ملایم مفید است\n• مراقب افزایش وزن باشید\n\nدوره طلایی بارداری است!`;
+    }
+    
+    return `در سه‌ماهه سوم (هفته ${week}):\n\n• آماده‌سازی برای زایمان\n• کلاس‌های بارداری مفید است\n• مراقب علائم زایمان باشید\n• کیف بیمارستان را آماده کنید\n• استراحت بیشتر\n\nتقریباً به پایان رسیده‌اید!`;
+  }
+
+  private getBabyAdvice(): string {
+    return `نکات مهم مراقبت از نوزاد:\n\n• شیردهی انحصاری تا ۶ ماهگی\n• واکسیناسیون به موقع\n• خواب ایمن (روی پشت)\n• نظافت و بهداشت\n• ارتباط و صحبت با نوزاد\n• مراجعه منظم به پزشک\n\nصبور باشید، همه چیز یاد می‌گیرید!`;
+  }
+
+  private getNutritionAdvice(userProfile: UserProfile): string {
+    const isPregnant = userProfile.pregnancyWeek && userProfile.pregnancyWeek > 0;
+    
+    if (isPregnant) {
+      return `تغذیه در بارداری:\n\n• پروتئین: گوشت، ماهی، تخم‌مرغ، حبوبات\n• کلسیم: لبنیات، کنجد، بادام\n• آهن: گوشت قرمز، اسفناج، عدس\n• اسید فولیک: سبزیجات برگ سبز\n• مایعات فراوان\n• پرهیز از غذاهای خام\n\nتغذیه متنوع کلید سلامتی است!`;
+    }
+    
+    return `تغذیه سالم:\n\n• میوه و سبزیجات تازه\n• غلات کامل\n• پروتئین‌های سالم\n• لبنیات کم‌چرب\n• آب فراوان\n• محدود کردن شکر و نمک\n\nتعادل در همه چیز مهم است!`;
+  }
+
+  private getSymptomAdvice(): string {
+    return `علائم مهم که نیاز به مراجعه فوری دارند:\n\n🚨 در بارداری:\n• خونریزی شدید\n• درد شکمی شدید\n• تب بالا\n• سردرد شدید\n• تورم ناگهانی\n\n🚨 در نوزاد:\n• تب بالای ۳۸ درجه\n• تنگی نفس\n• بی‌حالی\n• عدم خوردن شیر\n\nهمیشه به غریزه مادری خود اعتماد کنید!`;
+  }
+
+  private getGeneralAdvice(userProfile: UserProfile): string {
+    const responses = [
+      `سلام ${userProfile.name}! چطور می‌تونم کمکتون کنم؟ من اینجام تا در زمینه مادری و بارداری راهنماییتون کنم.`,
+      `خوشحالم که با من صحبت می‌کنید! سوال خاصی دارید؟ می‌تونم در مورد بارداری، مراقبت از نوزاد یا سلامت مادر کمکتون کنم.`,
+      `همیشه یادتون باشه که شما یک مادر فوق‌العاده هستید! چه سوالی دارید؟`,
+      `من اینجام تا کمکتون کنم. می‌تونید در مورد هر موضوعی که نگرانتونه سوال بپرسید.`
+    ];
+    
+    return responses[Math.floor(Math.random() * responses.length)];
   }
 }
 
-export const chatSer = new ChatService();
+export const chatService = new ChatService();

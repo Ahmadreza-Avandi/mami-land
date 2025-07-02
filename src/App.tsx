@@ -1,91 +1,110 @@
-import React, { useRef, useEffect } from 'react';
-import { useChat } from './hooks/useChat';
-import { ChatHeader } from './components/ChatHeader';
-import { ChatMessage } from './components/ChatMessage';
-import { ChatInput } from './components/ChatInput';
-import { EmptyState } from './components/EmptyState';
-import { ErrorMessage } from './components/ErrorMessage';
+import React, { useState, useEffect } from 'react';
+import { AccessCodeScreen } from './components/AccessCodeScreen';
+import { LoginScreen } from './components/LoginScreen';
+import { UserChatInterface } from './components/UserChatInterface';
+import { AdminLogin } from './components/AdminLogin';
+import { AdminDashboard } from './components/AdminDashboard';
+import { authService } from './services/authService';
+
+type AppState = 'access-code' | 'login' | 'chat' | 'admin-login' | 'admin-dashboard';
 
 function App() {
-  const { messages, isLoading, error, sendMessage, clearChat, clearError, userProfile, onboardingStep } = useChat();
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [appState, setAppState] = useState<AppState>('access-code');
+  const [user, setUser] = useState<any>(null);
+  const [admin, setAdmin] = useState<any>(null);
 
-  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    // بررسی وضعیت احراز هویت در بارگذاری اولیه
+    const authState = authService.getAuthState();
+    const adminState = authService.getAdminAuthState();
 
-  const handleSampleClick = (message: string) => {
-    sendMessage(message);
+    if (adminState) {
+      setAdmin(adminState);
+      setAppState('admin-dashboard');
+    } else if (authState.isAuthenticated && authState.user) {
+      setUser(authState.user);
+      setAppState('chat');
+    }
+
+    // بررسی اینکه آیا URL شامل /admin است
+    if (window.location.pathname.includes('/admin')) {
+      if (adminState) {
+        setAppState('admin-dashboard');
+      } else {
+        setAppState('admin-login');
+      }
+    }
+  }, []);
+
+  // مدیریت تغییر URL برای admin
+  useEffect(() => {
+    const handlePopState = () => {
+      if (window.location.pathname.includes('/admin')) {
+        const adminState = authService.getAdminAuthState();
+        if (adminState) {
+          setAppState('admin-dashboard');
+        } else {
+          setAppState('admin-login');
+        }
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const handleValidAccessCode = () => {
+    setAppState('login');
   };
 
-  const isOnboarding = onboardingStep < 4;
+  const handleLogin = (userData: any) => {
+    setUser(userData);
+    setAppState('chat');
+  };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-rose-50" dir="rtl">
-      <div className="container mx-auto max-w-4xl px-4 py-6">
-        <ChatHeader 
-          onClearChat={clearChat} 
-          messageCount={messages.length}
-          userProfile={userProfile}
-        />
+  const handleAdminLogin = (adminData: any) => {
+    setAdmin(adminData);
+    setAppState('admin-dashboard');
+    window.history.pushState({}, '', '/admin');
+  };
 
-        <div className="bg-white/70 backdrop-blur-sm rounded-3xl shadow-xl border border-pink-100 overflow-hidden">
-          <div className="h-[600px] flex flex-col">
-            {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-6">
-              {error && (
-                <ErrorMessage message={error} onClose={clearError} />
-              )}
-              
-              {messages.length === 0 ? (
-                <EmptyState 
-                  onSampleClick={handleSampleClick} 
-                  isOnboarding={isOnboarding}
-                  userProfile={userProfile}
-                />
-              ) : (
-                <div className="space-y-6">
-                  {messages.map((message) => (
-                    <ChatMessage key={message.id} message={message} />
-                  ))}
-                  {isLoading && (
-                    <div className="flex justify-start">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-white border-2 border-pink-200 flex items-center justify-center">
-                          <div className="w-4 h-4 border-2 border-pink-500 border-t-transparent rounded-full animate-spin"></div>
-                        </div>
-                        <div className="bg-white border border-pink-100 rounded-2xl rounded-bl-md px-4 py-3">
-                          <div className="flex gap-1">
-                            <div className="w-2 h-2 bg-pink-400 rounded-full animate-bounce"></div>
-                            <div className="w-2 h-2 bg-pink-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                            <div className="w-2 h-2 bg-pink-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  <div ref={messagesEndRef} />
-                </div>
-              )}
-            </div>
+  const handleLogout = () => {
+    authService.logout();
+    setUser(null);
+    setAppState('access-code');
+  };
 
-            {/* Input Area */}
-            <div className="p-6 pt-0">
-              <ChatInput 
-                onSendMessage={sendMessage}
-                isLoading={isLoading}
-              />
-            </div>
-          </div>
-        </div>
+  const handleAdminLogout = () => {
+    authService.adminLogout();
+    setAdmin(null);
+    setAppState('access-code');
+    window.history.pushState({}, '', '/');
+  };
 
-        <p className="text-center text-xs text-gray-500 mt-4">
-          تماممی حقوق مطعلق به مامی لند میباشد
-        </p>
-      </div>
-    </div>
-  );
+  const handleBackToAccessCode = () => {
+    setAppState('access-code');
+  };
+
+  // رندر کردن صفحه مناسب بر اساس وضعیت
+  switch (appState) {
+    case 'access-code':
+      return <AccessCodeScreen onValidCode={handleValidAccessCode} />;
+    
+    case 'login':
+      return <LoginScreen onLogin={handleLogin} onBack={handleBackToAccessCode} />;
+    
+    case 'chat':
+      return <UserChatInterface user={user} onLogout={handleLogout} />;
+    
+    case 'admin-login':
+      return <AdminLogin onLogin={handleAdminLogin} />;
+    
+    case 'admin-dashboard':
+      return <AdminDashboard onLogout={handleAdminLogout} />;
+    
+    default:
+      return <AccessCodeScreen onValidCode={handleValidAccessCode} />;
+  }
 }
 
 export default App;
