@@ -1,7 +1,7 @@
-import { User, AuthState, AdminUser } from '../types/auth';
+import { User, AuthState, AdminUser, AccessCode } from '../types/auth';
 
 class AuthService {
-  private readonly ACCESS_CODE_KEY = 'mamiland_access_code';
+  private readonly ACCESS_CODES_KEY = 'mamiland_access_codes';
   private readonly AUTH_STATE_KEY = 'mamiland_auth_state';
   private readonly ADMIN_AUTH_KEY = 'mamiland_admin_auth';
   private readonly USERS_KEY = 'mamiland_users';
@@ -13,48 +13,106 @@ class AuthService {
     for (let i = 0; i < 6; i++) {
       result += chars.charAt(Math.floor(Math.random() * chars.length));
     }
-    localStorage.setItem(this.ACCESS_CODE_KEY, result);
+    
+    const newCode: AccessCode = {
+      code: result,
+      createdAt: new Date(),
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 ساعت
+      isUsed: false,
+      usedBy: null,
+      usedAt: null
+    };
+
+    const codes = this.getAccessCodes();
+    codes.push(newCode);
+    localStorage.setItem(this.ACCESS_CODES_KEY, JSON.stringify(codes));
+    
     return result;
   }
 
-  // دریافت کد دسترسی فعلی
-  getCurrentAccessCode(): string | null {
-    return localStorage.getItem(this.ACCESS_CODE_KEY);
+  // دریافت تمام کدهای دسترسی
+  getAccessCodes(): AccessCode[] {
+    try {
+      const stored = localStorage.getItem(this.ACCESS_CODES_KEY);
+      if (!stored) return [];
+      
+      const parsed = JSON.parse(stored);
+      return parsed.map((code: any) => ({
+        ...code,
+        createdAt: new Date(code.createdAt),
+        expiresAt: new Date(code.expiresAt),
+        usedAt: code.usedAt ? new Date(code.usedAt) : null
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  // دریافت کدهای معتبر
+  getValidAccessCodes(): AccessCode[] {
+    const codes = this.getAccessCodes();
+    const now = new Date();
+    return codes.filter(code => !code.isUsed && code.expiresAt > now);
   }
 
   // بررسی صحت کد دسترسی
   validateAccessCode(code: string): boolean {
-    const currentCode = this.getCurrentAccessCode();
-    return currentCode === code.toUpperCase();
+    const codes = this.getAccessCodes();
+    const now = new Date();
+    const validCode = codes.find(c => 
+      c.code === code.toUpperCase() && 
+      !c.isUsed && 
+      c.expiresAt > now
+    );
+    
+    if (validCode) {
+      // علامت‌گذاری کد به عنوان استفاده شده
+      validCode.isUsed = true;
+      validCode.usedAt = new Date();
+      localStorage.setItem(this.ACCESS_CODES_KEY, JSON.stringify(codes));
+      return true;
+    }
+    
+    return false;
+  }
+
+  // حذف کد دسترسی
+  deleteAccessCode(code: string): void {
+    const codes = this.getAccessCodes().filter(c => c.code !== code);
+    localStorage.setItem(this.ACCESS_CODES_KEY, JSON.stringify(codes));
   }
 
   // ورود کاربر
   async login(email: string, password: string): Promise<User | null> {
-    // شبیه‌سازی تأخیر شبکه
     await new Promise(resolve => setTimeout(resolve, 1000));
 
-    // بررسی کاربران موجود
     const users = this.getUsers();
     const user = users.find(u => u.email === email);
 
     if (user) {
-      // در حالت واقعی، رمز عبور باید هش شده باشد
       const authState: AuthState = {
         isAuthenticated: true,
         user,
-        accessCode: this.getCurrentAccessCode()
+        accessCode: null
       };
       localStorage.setItem(this.AUTH_STATE_KEY, JSON.stringify(authState));
       return user;
     }
 
-    // اگر کاربر وجود ندارد، یکی جدید ایجاد کن
     if (email && password.length >= 6) {
       const newUser: User = {
         id: Date.now().toString(),
         email,
         name: email.split('@')[0],
-        joinDate: new Date()
+        joinDate: new Date(),
+        profile: {
+          name: '',
+          age: null,
+          isPregnant: null,
+          pregnancyWeek: null,
+          medicalConditions: '',
+          isComplete: false
+        }
       };
       
       users.push(newUser);
@@ -63,13 +121,31 @@ class AuthService {
       const authState: AuthState = {
         isAuthenticated: true,
         user: newUser,
-        accessCode: this.getCurrentAccessCode()
+        accessCode: null
       };
       localStorage.setItem(this.AUTH_STATE_KEY, JSON.stringify(authState));
       return newUser;
     }
 
     return null;
+  }
+
+  // به‌روزرسانی پروفایل کاربر
+  updateUserProfile(userId: string, profile: any): void {
+    const users = this.getUsers();
+    const userIndex = users.findIndex(u => u.id === userId);
+    
+    if (userIndex !== -1) {
+      users[userIndex].profile = { ...users[userIndex].profile, ...profile };
+      localStorage.setItem(this.USERS_KEY, JSON.stringify(users));
+      
+      // به‌روزرسانی وضعیت احراز هویت
+      const authState = this.getAuthState();
+      if (authState.user && authState.user.id === userId) {
+        authState.user.profile = users[userIndex].profile;
+        localStorage.setItem(this.AUTH_STATE_KEY, JSON.stringify(authState));
+      }
+    }
   }
 
   // ورود ادمین
