@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User, Mail, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
-import { authService } from '../services/authService';
+import { dbService } from '../services/databaseService';
 
 interface RegisterScreenProps {
   onRegister: (user: any) => void;
@@ -9,7 +9,7 @@ interface RegisterScreenProps {
 
 export const RegisterScreen: React.FC<RegisterScreenProps> = ({ onRegister, onBack }) => {
   const [formData, setFormData] = useState({
-    name: '',
+    username: '',
     email: '',
     password: '',
     confirmPassword: ''
@@ -22,8 +22,13 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({ onRegister, onBa
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.name.trim() || !formData.email.trim() || !formData.password.trim()) {
+    if (!formData.username.trim() || !formData.email.trim() || !formData.password.trim()) {
       setError('لطفاً تمام فیلدها را پر کنید');
+      return;
+    }
+
+    if (formData.username.length < 3) {
+      setError('نام کاربری باید حداقل ۳ کاراکتر باشد');
       return;
     }
 
@@ -41,14 +46,14 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({ onRegister, onBa
     setError('');
 
     try {
-      const user = await authService.register(formData.name, formData.email, formData.password);
+      const user = await dbService.registerUser(formData.username, formData.email, formData.password);
       if (user) {
         onRegister(user);
       } else {
         setError('خطایی در ثبت نام رخ داد');
       }
-    } catch {
-      setError('خطایی رخ داد، دوباره تلاش کنید');
+    } catch (error: any) {
+      setError(error.message || 'خطایی رخ داد، دوباره تلاش کنید');
     }
 
     setIsLoading(false);
@@ -81,21 +86,22 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({ onRegister, onBa
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                نام و نام خانوادگی
+                نام کاربری
               </label>
               <div className="relative">
                 <User className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
                 <input
                   type="text"
-                  value={formData.name}
+                  value={formData.username}
                   onChange={(e) => {
-                    setFormData({ ...formData, name: e.target.value });
+                    setFormData({ ...formData, username: e.target.value });
                     setError('');
                   }}
-                  placeholder="نام خود را وارد کنید"
+                  placeholder="نام کاربری یکتا انتخاب کنید"
                   className="w-full pr-10 pl-4 py-3 border border-pink-200 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent outline-none transition-all duration-200"
                   disabled={isLoading}
                   required
+                  minLength={3}
                 />
               </div>
             </div>

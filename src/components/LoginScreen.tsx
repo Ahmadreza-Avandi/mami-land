@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
-import { authService } from '../services/authService';
+import { dbService } from '../services/databaseService';
 
 interface LoginScreenProps {
   onLogin: (user: any) => void;
@@ -8,7 +8,7 @@ interface LoginScreenProps {
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onBack }) => {
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -16,17 +16,17 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onBack }) => 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim() || !password.trim()) return;
+    if (!username.trim() || !password.trim()) return;
 
     setIsLoading(true);
     setError('');
 
     try {
-      const user = await authService.login(email, password);
+      const user = await dbService.loginUser(username, password);
       if (user) {
         onLogin(user);
       } else {
-        setError('ایمیل یا رمز عبور نامعتبر است');
+        setError('نام کاربری یا رمز عبور نامعتبر است');
       }
     } catch {
       setError('خطایی رخ داد، دوباره تلاش کنید');
@@ -62,18 +62,18 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onBack }) => 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                ایمیل
+                نام کاربری یا ایمیل
               </label>
               <div className="relative">
                 <User className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
                 <input
-                  type="email"
-                  value={email}
+                  type="text"
+                  value={username}
                   onChange={(e) => {
-                    setEmail(e.target.value);
+                    setUsername(e.target.value);
                     setError('');
                   }}
-                  placeholder="example@email.com"
+                  placeholder="نام کاربری یا ایمیل"
                   className="w-full pr-10 pl-4 py-3 border border-pink-200 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent outline-none transition-all duration-200"
                   disabled={isLoading}
                   required
@@ -117,7 +117,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onBack }) => 
 
             <button
               type="submit"
-              disabled={!email.trim() || !password.trim() || isLoading}
+              disabled={!username.trim() || !password.trim() || isLoading}
               className="w-full bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white py-3 rounded-xl font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-lg hover:scale-105 active:scale-95"
             >
               {isLoading ? (
