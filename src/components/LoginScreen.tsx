@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
-import { dbService } from '../services/databaseService';
+import { authService } from '../services/authService';
 
 interface LoginScreenProps {
   onLogin: (user: any) => void;
@@ -22,7 +22,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onBack }) => 
     setError('');
 
     try {
-      const user = await dbService.loginUser(username, password);
+      const user = authService.login(username, password);
       if (user) {
         onLogin(user);
       } else {

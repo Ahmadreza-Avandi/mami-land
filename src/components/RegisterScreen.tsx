@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User, Mail, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
-import { dbService } from '../services/databaseService';
+import { authService } from '../services/authService';
 
 interface RegisterScreenProps {
   onRegister: (user: any) => void;
@@ -46,7 +46,7 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({ onRegister, onBa
     setError('');
 
     try {
-      const user = await dbService.registerUser(formData.username, formData.email, formData.password);
+      const user = authService.register(formData.username, formData.email, formData.password);
       if (user) {
         onRegister(user);
       } else {
