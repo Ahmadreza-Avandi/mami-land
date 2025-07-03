@@ -1,86 +1,28 @@
 import { ChatMessage, UserProfile } from '../types/chat';
-import { dbService } from './databaseService';
 
 const CHAT_HISTORY_KEY = 'mamiland_chat_history';
 const USER_PROFILE_KEY = 'mamiland_user_profile';
 const PROXY_API_URL = 'https://mine-gpt-alpha.vercel.app/proxy';
 
 class ChatService {
-  private currentSessionId: number | null = null;
-  private currentUserId: number | null = null;
-
-  // تنظیم کاربر فعلی
-  setCurrentUser(userId: number): void {
-    this.currentUserId = userId;
-  }
-
-  // ایجاد جلسه چت جدید
-  async createNewSession(userId: number, title?: string): Promise<number> {
-    const sessionId = await dbService.createChatSession(userId, title);
-    this.currentSessionId = sessionId;
-    return sessionId;
-  }
-
-  // بارگذاری تاریخچه چت از دیتابیس
-  async loadChatHistory(sessionId?: number): Promise<ChatMessage[]> {
+  // بارگذاری تاریخچه چت
+  loadChatHistory(): ChatMessage[] {
     try {
-      if (sessionId) {
-        this.currentSessionId = sessionId;
+      const stored = localStorage.getItem(CHAT_HISTORY_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return parsed.map((msg: any) => ({
+          ...msg,
+          timestamp: new Date(msg.timestamp)
+        }));
       }
-
-      if (!this.currentSessionId) {
-        // اگر جلسه‌ای وجود ندارد، از localStorage بارگذاری کن (برای سازگاری با قبل)
-        const stored = localStorage.getItem(CHAT_HISTORY_KEY);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          return parsed.map((msg: any) => ({
-            ...msg,
-            timestamp: new Date(msg.timestamp)
-          }));
-        }
-        return [];
-      }
-
-      const messages = await dbService.getChatMessages(this.currentSessionId);
-      return messages.map(msg => ({
-        id: msg.id.toString(),
-        content: msg.content,
-        role: msg.role as 'user' | 'assistant',
-        timestamp: new Date(msg.created_at)
-      }));
+      return [];
     } catch {
       return [];
     }
   }
 
-  // ذخیره پیام در دیتابیس
-  async saveMessage(content: string, role: 'user' | 'assistant'): Promise<void> {
-    try {
-      if (!this.currentSessionId && this.currentUserId) {
-        // ایجاد جلسه جدید اگر وجود ندارد
-        this.currentSessionId = await this.createNewSession(this.currentUserId);
-      }
-
-      if (this.currentSessionId && this.currentUserId) {
-        await dbService.saveChatMessage(this.currentSessionId, this.currentUserId, content, role);
-      } else {
-        // fallback به localStorage
-        const messages = await this.loadChatHistory();
-        const newMessage: ChatMessage = {
-          id: Date.now().toString(),
-          content,
-          role,
-          timestamp: new Date()
-        };
-        messages.push(newMessage);
-        localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(messages));
-      }
-    } catch (error) {
-      console.error('خطا در ذخیره پیام:', error);
-    }
-  }
-
-  // ذخیره تاریخچه چت در localStorage (برای سازگاری)
+  // ذخیره تاریخچه چت
   saveChatHistory(messages: ChatMessage[]): void {
     try {
       localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(messages));
@@ -126,12 +68,8 @@ class ChatService {
   }
 
   // پاک کردن تاریخچه چت
-  async clearChatHistory(): Promise<void> {
+  clearChatHistory(): void {
     try {
-      if (this.currentSessionId) {
-        await dbService.deleteChatSession(this.currentSessionId);
-        this.currentSessionId = null;
-      }
       localStorage.removeItem(CHAT_HISTORY_KEY);
       localStorage.removeItem(USER_PROFILE_KEY);
     } catch (error) {
@@ -198,15 +136,6 @@ User Profile:
     } catch (error) {
       console.error('Error sending message:', error);
       return 'متأسفم، مشکلی در اتصال به سرور پیش اومده. لطفاً یه کم دیگه صبر کن و دوباره امتحان کن.';
-    }
-  }
-
-  // دریافت جلسات چت کاربر
-  async getUserChatSessions(userId: number): Promise<any[]> {
-    try {
-      return await dbService.getChatSessions(userId);
-    } catch {
-      return [];
     }
   }
 }

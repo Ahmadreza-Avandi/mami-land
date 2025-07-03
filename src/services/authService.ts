@@ -1,132 +1,219 @@
-import { dbService } from './databaseService';
 import { User, AuthState, AdminUser, AccessCode } from '../types/auth';
 
 class AuthService {
   private readonly AUTH_STATE_KEY = 'mamiland_auth_state';
   private readonly ADMIN_AUTH_KEY = 'mamiland_admin_auth';
+  private readonly ACCESS_CODES_KEY = 'mamiland_access_codes';
+  private readonly USERS_KEY = 'mamiland_users';
+
+  constructor() {
+    this.initializeData();
+  }
+
+  private initializeData() {
+    // ایجاد کدهای دسترسی پیش‌فرض
+    if (!localStorage.getItem(this.ACCESS_CODES_KEY)) {
+      const defaultCodes: AccessCode[] = [
+        {
+          code: 'ABC123',
+          createdAt: new Date(),
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          isUsed: false,
+          usedBy: null,
+          usedAt: null
+        },
+        {
+          code: 'XYZ789',
+          createdAt: new Date(),
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          isUsed: false,
+          usedBy: null,
+          usedAt: null
+        },
+        {
+          code: 'DEF456',
+          createdAt: new Date(),
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          isUsed: false,
+          usedBy: null,
+          usedAt: null
+        }
+      ];
+      localStorage.setItem(this.ACCESS_CODES_KEY, JSON.stringify(defaultCodes));
+    }
+
+    // ایجاد لیست کاربران خالی
+    if (!localStorage.getItem(this.USERS_KEY)) {
+      localStorage.setItem(this.USERS_KEY, JSON.stringify([]));
+    }
+  }
 
   // تولید کد دسترسی
-  async generateAccessCode(): Promise<string> {
-    return await dbService.generateAccessCode();
+  generateAccessCode(): string {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let code = '';
+    for (let i = 0; i < 6; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+
+    const newCode: AccessCode = {
+      code,
+      createdAt: new Date(),
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      isUsed: false,
+      usedBy: null,
+      usedAt: null
+    };
+
+    const codes = this.getAccessCodes();
+    codes.push(newCode);
+    localStorage.setItem(this.ACCESS_CODES_KEY, JSON.stringify(codes));
+
+    return code;
   }
 
   // دریافت تمام کدهای دسترسی
-  async getAccessCodes(): Promise<AccessCode[]> {
-    const codes = await dbService.getAccessCodes();
-    return codes.map(code => ({
-      code: code.code,
-      createdAt: new Date(code.created_at),
-      expiresAt: new Date(code.expires_at),
-      isUsed: code.is_used,
-      usedBy: code.used_by,
-      usedAt: code.used_at ? new Date(code.used_at) : null
-    }));
-  }
-
-  // دریافت کدهای معتبر
-  async getValidAccessCodes(): Promise<AccessCode[]> {
-    const codes = await dbService.getValidAccessCodes();
-    return codes.map(code => ({
-      code: code.code,
-      createdAt: new Date(code.created_at),
-      expiresAt: new Date(code.expires_at),
-      isUsed: code.is_used,
-      usedBy: code.used_by,
-      usedAt: code.used_at ? new Date(code.used_at) : null
-    }));
+  getAccessCodes(): AccessCode[] {
+    try {
+      const stored = localStorage.getItem(this.ACCESS_CODES_KEY);
+      if (!stored) return [];
+      
+      const codes = JSON.parse(stored);
+      return codes.map((code: any) => ({
+        ...code,
+        createdAt: new Date(code.createdAt),
+        expiresAt: new Date(code.expiresAt),
+        usedAt: code.usedAt ? new Date(code.usedAt) : null
+      }));
+    } catch {
+      return [];
+    }
   }
 
   // بررسی صحت کد دسترسی
-  async validateAccessCode(code: string): Promise<boolean> {
-    return await dbService.validateAccessCode(code);
+  validateAccessCode(code: string): boolean {
+    const codes = this.getAccessCodes();
+    const foundCode = codes.find(c => 
+      c.code === code.toUpperCase() && 
+      !c.isUsed && 
+      c.expiresAt > new Date()
+    );
+
+    if (foundCode) {
+      foundCode.isUsed = true;
+      foundCode.usedAt = new Date();
+      localStorage.setItem(this.ACCESS_CODES_KEY, JSON.stringify(codes));
+      return true;
+    }
+    return false;
   }
 
   // حذف کد دسترسی
-  async deleteAccessCode(code: string): Promise<void> {
-    await dbService.deleteAccessCode(code);
+  deleteAccessCode(code: string): void {
+    const codes = this.getAccessCodes();
+    const filteredCodes = codes.filter(c => c.code !== code);
+    localStorage.setItem(this.ACCESS_CODES_KEY, JSON.stringify(filteredCodes));
   }
 
   // ثبت نام کاربر جدید
-  async register(username: string, email: string, password: string): Promise<User | null> {
+  register(username: string, email: string, password: string): User | null {
     try {
-      const user = await dbService.registerUser(username, email, password);
+      const users = this.getUsers();
       
-      if (user) {
-        const authState: AuthState = {
-          isAuthenticated: true,
-          user: {
-            id: user.id.toString(),
-            email: user.email,
-            name: user.username,
-            joinDate: new Date(),
-            profile: user.profile
-          },
-          accessCode: null
-        };
-        localStorage.setItem(this.AUTH_STATE_KEY, JSON.stringify(authState));
-        return authState.user;
+      // بررسی وجود نام کاربری یا ایمیل
+      const existingUser = users.find(u => u.name === username || u.email === email);
+      if (existingUser) {
+        if (existingUser.name === username) {
+          throw new Error('این نام کاربری قبلاً ثبت شده است');
+        }
+        if (existingUser.email === email) {
+          throw new Error('این ایمیل قبلاً ثبت شده است');
+        }
       }
-      return null;
+
+      const newUser: User = {
+        id: Date.now().toString(),
+        email,
+        name: username,
+        joinDate: new Date(),
+        profile: {
+          name: '',
+          age: null,
+          isPregnant: null,
+          pregnancyWeek: null,
+          medicalConditions: '',
+          isComplete: false
+        }
+      };
+
+      users.push(newUser);
+      localStorage.setItem(this.USERS_KEY, JSON.stringify(users));
+
+      const authState: AuthState = {
+        isAuthenticated: true,
+        user: newUser,
+        accessCode: null
+      };
+      localStorage.setItem(this.AUTH_STATE_KEY, JSON.stringify(authState));
+      
+      return newUser;
     } catch (error) {
       throw error;
     }
   }
 
   // ورود کاربر
-  async login(username: string, password: string): Promise<User | null> {
+  login(username: string, password: string): User | null {
     try {
-      const user = await dbService.loginUser(username, password);
-      
+      const users = this.getUsers();
+      const user = users.find(u => 
+        (u.name === username || u.email === username)
+      );
+
       if (user) {
         const authState: AuthState = {
           isAuthenticated: true,
-          user: {
-            id: user.id.toString(),
-            email: user.email,
-            name: user.username,
-            joinDate: new Date(),
-            profile: user.profile
-          },
+          user,
           accessCode: null
         };
         localStorage.setItem(this.AUTH_STATE_KEY, JSON.stringify(authState));
-        return authState.user;
+        return user;
       }
       return null;
     } catch (error) {
-      throw error;
+      return null;
     }
   }
 
   // به‌روزرسانی پروفایل کاربر
-  async updateUserProfile(userId: string, profile: any): Promise<void> {
-    await dbService.updateUserProfile(parseInt(userId), profile);
+  updateUserProfile(userId: string, profile: any): void {
+    const users = this.getUsers();
+    const userIndex = users.findIndex(u => u.id === userId);
     
-    // به‌روزرسانی وضعیت احراز هویت
-    const authState = this.getAuthState();
-    if (authState.user && authState.user.id === userId) {
-      authState.user.profile = { ...authState.user.profile, ...profile };
-      localStorage.setItem(this.AUTH_STATE_KEY, JSON.stringify(authState));
+    if (userIndex !== -1) {
+      users[userIndex].profile = { ...users[userIndex].profile, ...profile };
+      localStorage.setItem(this.USERS_KEY, JSON.stringify(users));
+      
+      // به‌روزرسانی وضعیت احراز هویت
+      const authState = this.getAuthState();
+      if (authState.user && authState.user.id === userId) {
+        authState.user.profile = users[userIndex].profile;
+        localStorage.setItem(this.AUTH_STATE_KEY, JSON.stringify(authState));
+      }
     }
   }
 
   // ورود ادمین
-  async adminLogin(username: string, password: string): Promise<AdminUser | null> {
-    try {
-      const admin = await dbService.adminLogin(username, password);
-      
-      if (admin) {
-        const adminUser: AdminUser = {
-          username: admin.username,
-          isAdmin: true
-        };
-        localStorage.setItem(this.ADMIN_AUTH_KEY, JSON.stringify(adminUser));
-        return adminUser;
-      }
-      return null;
-    } catch (error) {
-      return null;
+  adminLogin(username: string, password: string): AdminUser | null {
+    if (username === 'admin' && password === 'admin123') {
+      const adminUser: AdminUser = {
+        username: 'admin',
+        isAdmin: true
+      };
+      localStorage.setItem(this.ADMIN_AUTH_KEY, JSON.stringify(adminUser));
+      return adminUser;
     }
+    return null;
   }
 
   // دریافت وضعیت احراز هویت
@@ -171,20 +258,26 @@ class AuthService {
   }
 
   // دریافت لیست کاربران
-  async getUsers(): Promise<User[]> {
-    const users = await dbService.getAllUsers();
-    return users.map(user => ({
-      id: user.id.toString(),
-      email: user.email,
-      name: user.username,
-      joinDate: new Date(user.joinDate),
-      profile: user.profile
-    }));
+  getUsers(): User[] {
+    try {
+      const stored = localStorage.getItem(this.USERS_KEY);
+      if (!stored) return [];
+      
+      const users = JSON.parse(stored);
+      return users.map((user: any) => ({
+        ...user,
+        joinDate: new Date(user.joinDate)
+      }));
+    } catch {
+      return [];
+    }
   }
 
   // حذف کاربر
-  async deleteUser(userId: string): Promise<void> {
-    await dbService.deleteUser(parseInt(userId));
+  deleteUser(userId: string): void {
+    const users = this.getUsers();
+    const filteredUsers = users.filter(u => u.id !== userId);
+    localStorage.setItem(this.USERS_KEY, JSON.stringify(filteredUsers));
   }
 }
 
