@@ -268,17 +268,44 @@ export async function deleteUser(userId: number): Promise<void> {
   await executeQuery('DELETE FROM users WHERE id = ?', [userId]);
 }
 
-// ورود ادمین
+// ورود ادمین - اصلاح شده
 export async function loginAdmin(username: string, password: string): Promise<boolean> {
-  const results: any = await executeQuery(
-    'SELECT * FROM admins WHERE username = ? AND is_active = TRUE',
-    [username]
-  );
+  try {
+    console.log('🔍 تلاش ورود ادمین:', { username });
+    
+    const results: any = await executeQuery(
+      'SELECT * FROM admins WHERE username = ? AND is_active = TRUE',
+      [username]
+    );
 
-  if (results.length === 0) {
+    console.log('📊 نتایج جستجو ادمین:', results.length);
+
+    if (results.length === 0) {
+      console.log('❌ ادمین یافت نشد');
+      return false;
+    }
+
+    const admin = results[0];
+    console.log('👤 ادمین پیدا شد:', { id: admin.id, username: admin.username });
+    
+    // بررسی رمز عبور
+    const isValidPassword = await bcrypt.compare(password, admin.password_hash);
+    console.log('🔐 نتیجه بررسی رمز عبور:', isValidPassword);
+    
+    if (!isValidPassword) {
+      console.log('❌ رمز عبور نامعتبر');
+      return false;
+    }
+
+    console.log('✅ ورود ادمین موفق');
+    return true;
+  } catch (error) {
+    console.error('❌ خطا در ورود ادمین:', error);
     return false;
   }
+}
 
-  const admin = results[0];
-  return await bcrypt.compare(password, admin.password_hash);
+// تولید هش رمز عبور برای تست
+export async function generatePasswordHash(password: string): Promise<string> {
+  return await bcrypt.hash(password, 10);
 }
